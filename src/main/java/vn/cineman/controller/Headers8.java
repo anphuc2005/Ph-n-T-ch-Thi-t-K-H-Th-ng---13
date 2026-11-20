@@ -1,0 +1,3 @@
+package vn.cineman.controller;
+import jakarta.servlet.*;import jakarta.servlet.annotation.*;import jakarta.servlet.http.*;import java.io.*;
+@WebFilter("/*") public class Headers8 implements Filter {public void doFilter(ServletRequest req,ServletResponse res,FilterChain chain)throws IOException,ServletException{req.setCharacterEncoding("UTF-8");res.setCharacterEncoding("UTF-8");HttpServletResponse r=(HttpServletResponse)res;r.setHeader("X-Content-Type-Options","nosniff");r.setHeader("X-Frame-Options","DENY");r.setHeader("Cache-Control","no-store");r.setHeader("Content-Security-Policy","default-src 'self'; img-src 'self' blob:; style-src 'self'; script-src 'self'; form-action 'self'; frame-ancestors 'none'; base-uri 'self'");chain.doFilter(req,res);}}

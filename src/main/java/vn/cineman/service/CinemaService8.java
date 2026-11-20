@@ -1,0 +1,32 @@
+package vn.cineman.service;
+import vn.cineman.dao.*;import vn.cineman.model.Show8;import vn.cineman.model.User8;import vn.cineman.util.Passwords8;import java.sql.*;import java.math.*;import java.time.*;import java.util.*;
+public class CinemaService8 {
+ public final CinemaDao8 dao=new CinemaDao8();
+ @FunctionalInterface public interface Work<T>{T run(Connection c)throws Exception;}
+ public <T>T transaction(Work<T> work)throws Exception{try(Connection c=Db8.open()){c.setTransactionIsolation(Connection.TRANSACTION_READ_COMMITTED);c.setAutoCommit(false);try{T result=work.run(c);c.commit();return result;}catch(Exception e){c.rollback();throw e;}}}
+ public static String required(String s,int max){if(s==null||s.isBlank()||s.length()>max)throw new IllegalArgumentException("Vui lòng nhập đủ thông tin, đúng độ dài cho phép.");return s.trim();}
+ public static void allow(User8 u,String... roles){if(u==null||!Arrays.asList(roles).contains(u.role()))throw new SecurityException("Bạn không có quyền thực hiện thao tác này.");}
+ public User8 login(String email,String password)throws Exception{return transaction(c->{var row=dao.login(c,email);if(row==null||!Passwords8.verify(password,(String)row.get("password_hash")))throw new IllegalArgumentException("Email hoặc mật khẩu không đúng.");return new User8(((Number)row.get("id")).longValue(),(String)row.get("name"),(String)row.get("role"));});}
+ public void register(String name,String email,String password)throws Exception{required(name,100);required(email,190);if(!email.matches("[^\\s@]+@[^\\s@]+\\.[^\\s@]+"))throw new IllegalArgumentException("Email không hợp lệ.");if(password==null||password.length()<8||password.length()>128)throw new IllegalArgumentException("Mật khẩu cần từ 8 đến 128 ký tự.");transaction(c->{dao.register(c,name,email.toLowerCase(Locale.ROOT),Passwords8.hash(password));return null;});}
+ public void saveMovie(User8 u,long id,String title,String genre,int duration,String description)throws Exception{allow(u,"MANAGER");required(title,150);required(genre,80);required(description,5000);if(duration<1||duration>600)throw new IllegalArgumentException("Thời lượng từ 1 đến 600 phút.");transaction(c->{if(id>0){var old=dao.movie(c,id);if(old==null)throw new IllegalArgumentException("Không tìm thấy phim.");if(dao.referenced(c,"movie",id)&&((Number)old.get("duration")).intValue()!=duration)throw new IllegalArgumentException("Phim đã có lịch chiếu: không thể đổi thời lượng.");}dao.movieSave(c,id,title,genre,duration,description);return null;});}
+ public void saveRoom(User8 u,long id,String name,int rows,int cols)throws Exception{allow(u,"MANAGER");required(name,80);if(rows<1||rows>26||cols<1||cols>30)throw new IllegalArgumentException("Phòng gồm 1–26 hàng, mỗi hàng 1–30 ghế.");transaction(c->{if(id>0){dao.room(c,id);if(dao.referenced(c,"room",id))throw new IllegalArgumentException("Phòng đã có lịch chiếu, không thể đổi cấu hình.");}dao.roomSave(c,id,name,rows,cols);return null;});}
+ public void delete(User8 u,String type,long id)throws Exception{allow(u,"MANAGER");transaction(c->{if(type.equals("room"))dao.room(c,id);else dao.movie(c,id);if(dao.referenced(c,type,id))throw new IllegalArgumentException("Dữ liệu đã có lịch chiếu, không thể xóa.");dao.delete(c,type,id);return null;});}
+ public void schedule(User8 u,long movie,long room,LocalDateTime start,BigDecimal price)throws Exception{allow(u,"MANAGER");if(!start.isAfter(LocalDateTime.now(ZoneId.of("Asia/Ho_Chi_Minh")))||price.signum()<=0||price.compareTo(new BigDecimal("10000000"))>0||price.scale()>0)throw new IllegalArgumentException("Chọn thời gian tương lai và giá nguyên dương tối đa 10 triệu đồng.");transaction(c->{var m=dao.movie(c,movie);var r=dao.room(c,room);if(m==null||r==null)throw new IllegalArgumentException("Phim hoặc phòng không tồn tại.");var end=start.plusMinutes(((Number)m.get("duration")).longValue());if(dao.overlap(c,room,Timestamp.valueOf(start),Timestamp.valueOf(end)))throw new IllegalArgumentException("Lịch chiếu trùng với suất khác trong phòng.");dao.schedule(c,movie,room,Timestamp.valueOf(start),Timestamp.valueOf(end),price);return null;});}
+ public long buy(User8 u,long show,List<Long> seats,String card,String key,boolean success)throws Exception{allow(u,"CUSTOMER","SALES");UUID.fromString(key);if(seats.isEmpty()||seats.size()>30||new HashSet<>(seats).size()!=seats.size())throw new IllegalArgumentException("Chọn từ 1 đến 30 ghế khác nhau.");return transaction(c->{var s=dao.show(c,show);if(s==null)throw new IllegalArgumentException("Suất chiếu không tồn tại.");var old=dao.existing(c,key);if(old!=null){if(((Number)old.get("actor_id")).longValue()!=u.id())throw new SecurityException();return ((Number)old.get("id")).longValue();}if(!Show8.from(s).startsAt().isAfter(LocalDateTime.now(ZoneId.of("Asia/Ho_Chi_Minh"))))throw new IllegalArgumentException("Suất chiếu đã bắt đầu.");Long customer=u.role().equals("CUSTOMER")?u.id():null;if(card!=null&&!card.isBlank()){var member=dao.member(c,card.trim());if(member==null)throw new IllegalArgumentException("Mã thẻ không hợp lệ. Hãy sửa hoặc bỏ mã.");long owner=((Number)member.get("user_id")).longValue();if(u.role().equals("CUSTOMER")&&owner!=u.id())throw new IllegalArgumentException("Thẻ không thuộc tài khoản của bạn.");customer=owner;}for(long seat:seats)if(!dao.seatAvailable(c,show,((Number)s.get("room_id")).longValue(),seat))throw new IllegalArgumentException("Ghế vừa được bán hoặc không thuộc phòng. Vui lòng chọn lại.");if(!success)throw new IllegalArgumentException("Thanh toán mô phỏng thất bại. Chưa phát hành vé hoặc ghi nhận tiền.");BigDecimal basePrice=(BigDecimal)s.get("price");
+    var allSeats=dao.seats(c,show);
+    var seatMap=new HashMap<Long,Map<String,Object>>();
+    for(var sm:allSeats)seatMap.put(((Number)sm.get("id")).longValue(),sm);
+    BigDecimal total=BigDecimal.ZERO;
+    Map<Long,BigDecimal> seatPrices=new HashMap<>();
+    for(long seatId:seats){
+      var sm=seatMap.get(seatId);
+      String label=sm!=null?(String)sm.get("label"):"";
+      BigDecimal seatPrice=CheckoutService8.isVip(label)?basePrice.add(CheckoutService8.VIP_SURCHARGE):basePrice;
+      seatPrices.put(seatId,seatPrice);
+      total=total.add(seatPrice);
+    }
+    long id=dao.order(c,u.id(),customer,key,u.role().equals("SALES")?"COUNTER":"ONLINE",total);
+    for(long seatId:seats)dao.ticket(c,id,show,seatId,seatPrices.get(seatId));
+    dao.payment(c,id,u.role().equals("SALES")?"CASH":"SIMULATED",total);
+    return id;});}
+}

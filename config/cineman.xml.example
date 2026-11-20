@@ -1,0 +1,8 @@
+<Context>
+  <Resource name="jdbc/CineMan" auth="Container" type="javax.sql.DataSource"
+    factory="org.apache.tomcat.dbcp.dbcp2.BasicDataSourceFactory"
+    driverClassName="com.mysql.cj.jdbc.Driver"
+    url="jdbc:mysql://localhost:3306/cineman?connectionTimeZone=%2B07:00&amp;forceConnectionTimeZoneToSession=true"
+    username="cineman" password="REPLACE_LOCALLY"
+    maxTotal="10" maxIdle="5" maxWaitMillis="10000" validationQuery="SELECT 1" testOnBorrow="true" />
+</Context>

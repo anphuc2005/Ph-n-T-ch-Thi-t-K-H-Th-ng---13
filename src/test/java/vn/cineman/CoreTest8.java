@@ -1,0 +1,7 @@
+package vn.cineman;
+import org.junit.jupiter.api.Test;import static org.junit.jupiter.api.Assertions.*;import vn.cineman.util.Passwords8;import vn.cineman.service.CinemaService8;import vn.cineman.model.User8;import java.util.*;import java.math.*;import java.time.*;
+class CoreTest8 {
+ @Test void passwordHashesAreSaltedAndVerified(){String a=Passwords8.hash("abc12345"),b=Passwords8.hash("abc12345");assertNotEquals(a,b);assertTrue(Passwords8.verify("abc12345",a));assertFalse(Passwords8.verify("wrong",a));assertFalse(Passwords8.verify("abc","invalid"));}
+ @Test void rejectEscalation(){assertThrows(SecurityException.class,()->CinemaService8.allow(new User8(1,"a","CUSTOMER"),"MANAGER"));assertThrows(SecurityException.class,()->CinemaService8.allow(null,"SALES"));}
+ @Test void invalidInputBeforeDatabase(){var s=new CinemaService8();var manager=new User8(1,"a","MANAGER");var customer=new User8(2,"b","CUSTOMER");assertThrows(IllegalArgumentException.class,()->s.saveMovie(manager,0,"a","b",0,"c"));assertThrows(IllegalArgumentException.class,()->s.saveRoom(manager,0,"a",27,8));assertThrows(IllegalArgumentException.class,()->s.buy(customer,1,List.of(1L,1L),"",UUID.randomUUID().toString(),true));assertThrows(IllegalArgumentException.class,()->s.schedule(manager,1,1,LocalDateTime.now().minusDays(1),BigDecimal.TEN));assertThrows(IllegalArgumentException.class,()->s.register("a","invalid","12345678"));}
+}
